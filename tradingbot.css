@@ -1,0 +1,44 @@
+# Geovani Rodriguez
+
+#include <iostream>
+#include <cpr/cpr.h>
+
+std::string account_id = "YOUR_ACCOUNT_ID";
+std::string access_token = "YOUR_ACCESS_TOKEN";
+
+int main() {
+    // Get current rate
+    auto rate_response = cpr::Get(cpr::Url{"https://api-fxpractice.oanda.com/v3/accounts/" + account_id + "/pricing"},
+                                  cpr::Header{{"Authorization", "Bearer " + access_token}});
+    auto rate = json::parse(rate_response.text)["prices"][0]["asks"][0]["price"];
+
+    // Define your trading strategy
+    double buy_threshold = rate * 0.9;
+    double sell_threshold = rate * 1.1;
+
+    // Get your current balance
+    auto account_response = cpr::Get(cpr::Url{"https://api-fxpractice.oanda.com/v3/accounts/" + account_id},
+                                     cpr::Header{{"Authorization", "Bearer " + access_token}});
+    auto balance = json::parse(account_response.text)["account"]["balance"];
+
+    // Check if the current price is below the buy threshold
+    if (rate < buy_threshold) {
+        // Calculate the number of units to buy
+        double units = balance / rate;
+        // Place a buy order
+        auto buy_response = cpr::Post(cpr::Url{"https://api-fxpractice.oanda.com/v3/accounts/" + account_id + "/orders"},
+                                      cpr::Header{{"Authorization", "Bearer " + access_token}},
+                                      cpr::Body{R"({"order": {"instrument": "EUR_USD", "units": ")" + std::to_string(units) + R"(", "side": "buy", "type": "market"}})"});
+        std::cout << "Bought " << units << " units at " << rate << std::endl;
+    }
+
+    // Check if the current price is above the sell threshold
+    if (rate > sell_threshold) {
+        // Place a sell order
+        auto sell_response = cpr::Post(cpr::Url{"https://api-fxpractice.oanda.com/v3/accounts/" + account_id + "/orders"},
+                                       cpr::Header{{"Authorization", "Bearer " + access_token}},
+                                       cpr::Body{R"({"order": {"instrument": "EUR_USD", "units": ")" + std::to_string(units) + R"(", "side": "sell", "type": "market"}})"});
+        std::cout << "Sold " << units << " units at " << rate << std::endl;
+    }
+    return 0;
+}
